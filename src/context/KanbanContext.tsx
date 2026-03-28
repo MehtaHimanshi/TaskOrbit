@@ -6,22 +6,8 @@ import { fetchAppState, saveAppState } from '@/lib/api';
 type Action =
   | { type: 'SET_STATE'; payload: AppState }
   | { type: 'ADD_BOARD'; payload: { title: string; background: BoardBackground } }
-  | { type: 'UPDATE_BOARD'; payload: { id: string; updates: Partial<Board> } }
-  | { type: 'DELETE_BOARD'; payload: string }
   | { type: 'ADD_LIST'; payload: { boardId: string; title: string } }
-  | { type: 'UPDATE_LIST'; payload: { id: string; title: string } }
-  | { type: 'DELETE_LIST'; payload: string }
-  | { type: 'REORDER_LISTS'; payload: { boardId: string; listIds: string[] } }
-  | { type: 'ADD_CARD'; payload: { listId: string; title: string } }
-  | { type: 'UPDATE_CARD'; payload: { id: string; updates: Partial<Card> } }
-  | { type: 'DELETE_CARD'; payload: string }
-  | { type: 'MOVE_CARD'; payload: { cardId: string; toListId: string; toPosition: number } }
-  | { type: 'REORDER_CARDS'; payload: { listId: string; cardIds: string[] } }
-  | { type: 'ADD_COMMENT'; payload: { cardId: string; userId: string; text: string } }
-  | { type: 'TOGGLE_CHECKLIST_ITEM'; payload: { cardId: string; itemId: string } }
-  | { type: 'ADD_CHECKLIST_ITEM'; payload: { cardId: string; text: string } }
-  | { type: 'DELETE_CHECKLIST_ITEM'; payload: { cardId: string; itemId: string } }
-  | { type: 'ADD_ACTIVITY'; payload: { cardId: string; userId: string; action: string } };
+  | { type: 'ADD_CARD'; payload: { listId: string; title: string } };
 
 function addActivity(state: AppState, cardId: string, userId: string, action: string): ActivityEntry[] {
   const entry: ActivityEntry = {
@@ -105,36 +91,42 @@ export function KanbanProvider({ children }: { children: React.ReactNode }) {
 
   const [syncReady, setSyncReady] = useState(false);
 
-  // 🚀 LOAD FROM DB ONLY
+  // 🔥 LOAD ONCE FROM DB (SAFE)
   useEffect(() => {
     (async () => {
-      try {
-        const r = await fetchAppState();
+      let loaded = false;
 
-        if (r.ok) {
-          const data = await r.json();
+      try {
+        const res = await fetchAppState();
+
+        if (res.ok) {
+          const data = await res.json();
           dispatch({ type: 'SET_STATE', payload: data });
-        } else if (r.status === 404) {
-          // first time → seed DB
+          loaded = true;
+        } else if (res.status === 404) {
           await saveAppState(stateRef.current);
+          loaded = true;
         } else {
-          throw new Error(`GET /api/state failed`);
+          throw new Error(`API failed: ${res.status}`);
         }
       } catch (e) {
-        console.error("API ERROR:", e);
-      } finally {
+        console.error("LOAD ERROR:", e);
+      }
+
+      // ✅ only after successful load
+      if (loaded) {
         setSyncReady(true);
       }
     })();
   }, []);
 
-  // 🚀 SAVE TO DB (NO LOCAL STORAGE)
+  // 🔥 SAVE (ONLY AFTER LOAD)
   useEffect(() => {
     if (!syncReady) return;
 
     const t = setTimeout(() => {
       saveAppState(state).catch(() => {});
-    }, 300);
+    }, 400);
 
     return () => clearTimeout(t);
   }, [state, syncReady]);
