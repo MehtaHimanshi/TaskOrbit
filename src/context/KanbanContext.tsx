@@ -122,14 +122,23 @@ export function KanbanProvider({ children }: { children: React.ReactNode }) {
 
   // 🔥 SAVE (ONLY AFTER LOAD)
   useEffect(() => {
-    if (!syncReady) return;
+  if (!syncReady) return;
 
-    const t = setTimeout(() => {
-      saveAppState(state).catch(() => {});
-    }, 400);
+  // 🔥 VERY IMPORTANT FIX
+  if (
+    state.boards.length === 0 &&
+    state.lists.length === 0 &&
+    state.cards.length === 0
+  ) {
+    return; // ❌ empty state DB me save nahi hogi
+  }
 
-    return () => clearTimeout(t);
-  }, [state, syncReady]);
+  const t = setTimeout(() => {
+    saveAppState(state).catch(() => {});
+  }, 400);
+
+  return () => clearTimeout(t);
+}, [state, syncReady]);
 
   return (
     <KanbanContext.Provider value={{ state, dispatch }}>
