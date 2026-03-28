@@ -87,7 +87,7 @@ app.put('/api/state', async (req, res) => {
     if (!body.activities) body.activities = [];
 
     await pool.query(
-  'INSERT INTO app_state (id, payload) VALUES (1, CAST(? AS JSON)) ON DUPLICATE KEY UPDATE payload = CAST(? AS JSON)',
+  'INSERT INTO app_state (id, payload) VALUES (1, ?) ON DUPLICATE KEY UPDATE payload = ?',
   [JSON.stringify(body), JSON.stringify(body)]
 );
 
