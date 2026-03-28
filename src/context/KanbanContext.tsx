@@ -86,13 +86,10 @@ export function KanbanProvider({ children }: { children: React.ReactNode }) {
     activities: [],
   });
 
-  const stateRef = useRef(state);
-  stateRef.current = state;
-
   const [syncReady, setSyncReady] = useState(false);
-  const hasLoadedOnce = useRef(false); // 🔥 NEW
+  const hasLoadedOnce = useRef(false); // 🔥 KEY FIX
 
-  // 🔥 LOAD FROM DB
+  // ✅ LOAD FROM DB
   useEffect(() => {
     (async () => {
       try {
@@ -101,29 +98,27 @@ export function KanbanProvider({ children }: { children: React.ReactNode }) {
         if (res.ok) {
           const data = await res.json();
           dispatch({ type: 'SET_STATE', payload: data });
-          hasLoadedOnce.current = true;
         } else if (res.status === 404) {
-          await saveAppState(stateRef.current);
-          hasLoadedOnce.current = true;
-        } else {
-          throw new Error(`API failed`);
+          await saveAppState(state);
         }
+
+        hasLoadedOnce.current = true; // 🔥 MARK LOADED
+        setSyncReady(true);
+
       } catch (e) {
         console.error("LOAD ERROR:", e);
-      } finally {
-        setSyncReady(true);
       }
     })();
   }, []);
 
-  // 🔥 SAVE (SAFE)
+  // ✅ SAVE TO DB (SAFE)
   useEffect(() => {
     if (!syncReady) return;
-    if (!hasLoadedOnce.current) return; // 🔥 CRITICAL FIX
+    if (!hasLoadedOnce.current) return; // 🔥 MOST IMPORTANT
 
     const t = setTimeout(() => {
       saveAppState(state).catch(() => {});
-    }, 400);
+    }, 500);
 
     return () => clearTimeout(t);
   }, [state, syncReady]);
