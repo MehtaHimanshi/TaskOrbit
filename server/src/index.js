@@ -87,9 +87,9 @@ app.put('/api/state', async (req, res) => {
     if (!body.activities) body.activities = [];
 
     await pool.query(
-      'INSERT INTO app_state (id, payload) VALUES (1, ?) ON DUPLICATE KEY UPDATE payload = VALUES(payload)',
-      [JSON.stringify(body)]
-    );
+  'INSERT INTO app_state (id, payload) VALUES (1, CAST(? AS JSON)) ON DUPLICATE KEY UPDATE payload = CAST(? AS JSON)',
+  [JSON.stringify(body), JSON.stringify(body)]
+);
 
     await syncToRelationalTables(pool, body);
 
