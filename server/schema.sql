@@ -2,12 +2,6 @@
 --   mysql -u root -p < schema.sql
 -- Or paste into TablePlus / Workbench against database `taskorbit`.
 
-CREATE DATABASE IF NOT EXISTS taskorbit
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE taskorbit;
-
 CREATE TABLE IF NOT EXISTS boards (
   id VARCHAR(64) PRIMARY KEY,
   title VARCHAR(255) Not null,

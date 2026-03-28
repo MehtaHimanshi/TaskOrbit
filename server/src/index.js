@@ -1,9 +1,11 @@
 import express from 'express';
 import cors from 'cors';
-import { pingDb, pool } from './db.js';
-import { syncToRelationalTables } from './syncToRelational.js';
 import dotenv from "dotenv";
 dotenv.config();
+
+import { pingDb, pool } from './db.js';
+import { syncToRelationalTables } from './syncToRelational.js';
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
@@ -22,81 +24,119 @@ function isAppStateShape(body) {
   );
 }
 
-/** Full kanban snapshot for the React app */
+/** ✅ FIXED: Full kanban snapshot */
 app.get('/api/state', async (_req, res) => {
   try {
     const [rows] = await pool.query('SELECT payload FROM app_state WHERE id = 1');
+
     if (!rows.length) {
       return res.status(404).json({ error: 'no_snapshot' });
     }
-    const payload = rows[0].payload;
-    const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+
+    let data = rows[0].payload;
+
+    // 🔥 SAFE JSON PARSE
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data);
+      } catch (err) {
+        console.error('JSON parse error:', data);
+        return res.status(500).json({ error: 'invalid_json_in_db' });
+      }
+    }
+
+    if (!data || typeof data !== 'object') {
+      return res.status(500).json({ error: 'invalid_payload' });
+    }
+
     if (!isAppStateShape(data)) {
       return res.status(500).json({ error: 'invalid_snapshot' });
     }
+
     if (!data.activities) data.activities = [];
+
     res.json(data);
+
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: String(e.message) });
+    console.error('STATE ERROR:', e);
+    res.status(500).json({ error: e.message || 'unknown_error' });
   }
 });
 
+/** Save full state */
 app.put('/api/state', async (req, res) => {
   try {
     const body = req.body;
+
     if (!isAppStateShape(body)) {
       return res.status(400).json({ error: 'expected full AppState JSON' });
     }
+
     if (!body.activities) body.activities = [];
+
     await pool.query(
       'INSERT INTO app_state (id, payload) VALUES (1, ?) ON DUPLICATE KEY UPDATE payload = VALUES(payload)',
       [JSON.stringify(body)]
     );
+
     await syncToRelationalTables(pool, body);
+
     res.json({ ok: true });
+
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: String(e.message) });
+    console.error('PUT STATE ERROR:', e);
+    res.status(500).json({ error: e.message || 'unknown_error' });
   }
 });
 
-/** One-shot: fill boards/lists/cards from existing app_state (e.g. after upgrade) */
+/** Sync relational tables */
 app.post('/api/sync/relational', async (_req, res) => {
   try {
     const [rows] = await pool.query('SELECT payload FROM app_state WHERE id = 1');
+
     if (!rows.length) {
       return res.status(404).json({ error: 'no_snapshot' });
     }
-    const payload = rows[0].payload;
-    const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+
+    let data = rows[0].payload;
+
+    if (typeof data === 'string') {
+      data = JSON.parse(data);
+    }
+
     if (!isAppStateShape(data)) {
       return res.status(500).json({ error: 'invalid_snapshot' });
     }
+
     if (!data.activities) data.activities = [];
+
     await syncToRelationalTables(pool, data);
+
     res.json({ ok: true, message: 'boards, lists, cards updated from app_state' });
+
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: String(e.message) });
+    console.error('SYNC ERROR:', e);
+    res.status(500).json({ error: e.message || 'unknown_error' });
   }
 });
 
+/** Health */
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'taskorbit-api' });
 });
 
+/** DB health */
 app.get('/api/health/db', async (_req, res) => {
   try {
     await pingDb();
     res.json({ ok: true, mysql: 'connected' });
   } catch (e) {
-    console.error(e);
+    console.error('DB ERROR:', e);
     res.status(503).json({ ok: false, mysql: 'error', message: String(e.message) });
   }
 });
 
-/** Example: list boards (after you insert rows in MySQL) */
+/** Boards list */
 app.get('/api/boards', async (_req, res) => {
   try {
     const [rows] = await pool.query(
@@ -104,11 +144,11 @@ app.get('/api/boards', async (_req, res) => {
     );
     res.json(rows);
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: String(e.message) });
+    console.error('BOARDS ERROR:', e);
+    res.status(500).json({ error: e.message || 'unknown_error' });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
