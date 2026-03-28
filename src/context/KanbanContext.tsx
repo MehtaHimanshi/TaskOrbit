@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef, useState } from 'react';
-import { AppState, Board, List, Card, ChecklistItem, Comment, BoardBackground, ActivityEntry } from '@/types/kanban';
+import { AppState, Board, List, Card, BoardBackground, ActivityEntry } from '@/types/kanban';
 import { genId } from '@/store/kanbanStore';
 import { fetchAppState, saveAppState } from '@/lib/api';
 
@@ -90,55 +90,43 @@ export function KanbanProvider({ children }: { children: React.ReactNode }) {
   stateRef.current = state;
 
   const [syncReady, setSyncReady] = useState(false);
+  const hasLoadedOnce = useRef(false); // 🔥 NEW
 
-  // 🔥 LOAD ONCE FROM DB (SAFE)
+  // 🔥 LOAD FROM DB
   useEffect(() => {
     (async () => {
-      let loaded = false;
-
       try {
         const res = await fetchAppState();
 
         if (res.ok) {
           const data = await res.json();
           dispatch({ type: 'SET_STATE', payload: data });
-          loaded = true;
+          hasLoadedOnce.current = true;
         } else if (res.status === 404) {
           await saveAppState(stateRef.current);
-          loaded = true;
+          hasLoadedOnce.current = true;
         } else {
-          throw new Error(`API failed: ${res.status}`);
+          throw new Error(`API failed`);
         }
       } catch (e) {
         console.error("LOAD ERROR:", e);
-      }
-
-      // ✅ only after successful load
-      if (loaded) {
+      } finally {
         setSyncReady(true);
       }
     })();
   }, []);
 
-  // 🔥 SAVE (ONLY AFTER LOAD)
+  // 🔥 SAVE (SAFE)
   useEffect(() => {
-  if (!syncReady) return;
+    if (!syncReady) return;
+    if (!hasLoadedOnce.current) return; // 🔥 CRITICAL FIX
 
-  // 🔥 VERY IMPORTANT FIX
-  if (
-    state.boards.length === 0 &&
-    state.lists.length === 0 &&
-    state.cards.length === 0
-  ) {
-    return; // ❌ empty state DB me save nahi hogi
-  }
+    const t = setTimeout(() => {
+      saveAppState(state).catch(() => {});
+    }, 400);
 
-  const t = setTimeout(() => {
-    saveAppState(state).catch(() => {});
-  }, 400);
-
-  return () => clearTimeout(t);
-}, [state, syncReady]);
+    return () => clearTimeout(t);
+  }, [state, syncReady]);
 
   return (
     <KanbanContext.Provider value={{ state, dispatch }}>
