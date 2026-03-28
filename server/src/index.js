@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import 'dotenv/config';
 import { pingDb, pool } from './db.js';
 import { syncToRelationalTables } from './syncToRelational.js';
 import dotenv from "dotenv";
@@ -111,9 +110,5 @@ app.get('/api/boards', async (_req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`TaskOrbit API http://localhost:${PORT}`);
-  console.log(`Health: http://localhost:${PORT}/api/health`);
-  console.log(`DB ping: http://localhost:${PORT}/api/health/db`);
-  console.log(`State:  GET/PUT http://localhost:${PORT}/api/state`);
-  console.log(`Sync:   POST http://localhost:${PORT}/api/sync/relational`);
+  console.log(`Server running on port ${PORT}`);
 });
